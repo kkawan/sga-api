@@ -7,11 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// versão da API, uso ela no /health
+const versao = "1.0.0"
+
 func main() {
 
 	r := gin.New()
 
 	// Uso dos Middlewares globais nativos e personalizados
+	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
 	// 4. Mapeamento de Rotas sob Grupo Versionado
@@ -22,7 +26,7 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{
 				"status":    "healthy",
 				"timestamp": time.Now(),
-				"version":   "1.0.0",
+				"version":   versao,
 			})
 		})
 

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"api-gin/handlers"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,6 +31,10 @@ func main() {
 				"version":   versao,
 			})
 		})
+
+		// Domínio de Salas (Rooms)
+		v1.POST("/salas", handlers.CriarSala)
+		v1.GET("/salas", handlers.ListarSalas)
 
 		// Domínio de Turmas (Classes)
 		//v1.POST("/turmas", turmaHandler.CriarTurma)

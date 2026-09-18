@@ -22,6 +22,11 @@ type turmaResumo struct {
 	Alocacao   *models.Alocacao `json:"alocacao"`
 }
 
+// o corpo do POST de matrícula
+type entradaMatricula struct {
+	AlunoID string `json:"aluno_id"`
+}
+
 // CriarTurma cadastra uma turma nova.
 // POST /api/v1/turmas
 func CriarTurma(c *gin.Context) {
@@ -82,4 +87,73 @@ func ListarTurmas(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, lista)
+}
+
+// AdicionarAluno matricula um aluno na turma.
+// POST /api/v1/turmas/:id/alunos
+func AdicionarAluno(c *gin.Context) {
+	turma := banco.BuscarTurma(c.Param("id"))
+	if turma == nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "turma não encontrada"})
+		return
+	}
+
+	var entrada entradaMatricula
+	if err := c.ShouldBindJSON(&entrada); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "não consegui ler o json: " + err.Error()})
+		return
+	}
+	if entrada.AlunoID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "o campo aluno_id é obrigatório"})
+		return
+	}
+
+	aluno := banco.BuscarAluno(entrada.AlunoID)
+	if aluno == nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "aluno não encontrado"})
+		return
+	}
+
+	// REGRA 1 - não pode matricular o mesmo aluno duas vezes na mesma turma
+	for _, matriculado := range turma.Alunos {
+		if matriculado == aluno.ID {
+			c.JSON(http.StatusConflict, gin.H{"erro": "esse aluno já está matriculado nessa turma"})
+			return
+		}
+	}
+
+	turma.Alunos = append(turma.Alunos, aluno.ID)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"mensagem":   "aluno matriculado na turma",
+		"turma_id":   turma.ID,
+		"aluno_id":   aluno.ID,
+		"qtd_alunos": len(turma.Alunos),
+	})
+}
+
+// ListarAlunosDaTurma mostra os alunos matriculados numa turma.
+// GET /api/v1/turmas/:id/alunos
+func ListarAlunosDaTurma(c *gin.Context) {
+	turma := banco.BuscarTurma(c.Param("id"))
+	if turma == nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "turma não encontrada"})
+		return
+	}
+
+	// na turma eu guardo só o id do aluno, então preciso buscar os dados de cada um
+	alunos := []*models.Aluno{}
+	for _, id := range turma.Alunos {
+		aluno := banco.BuscarAluno(id)
+		if aluno != nil {
+			alunos = append(alunos, aluno)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"turma_id":   turma.ID,
+		"turma":      turma.Nome,
+		"qtd_alunos": len(alunos),
+		"alunos":     alunos,
+	})
 }

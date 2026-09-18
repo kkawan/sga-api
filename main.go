@@ -42,8 +42,8 @@ func main() {
 		v1.GET("/alunos/:id", handlers.BuscarAlunoPorID)
 
 		// Domínio de Turmas (Classes)
-		//v1.POST("/turmas", turmaHandler.CriarTurma)
-		//v1.GET("/turmas", turmaHandler.ListarTurmas)
+		v1.POST("/turmas", handlers.CriarTurma)
+		v1.GET("/turmas", handlers.ListarTurmas)
 		//v1.POST("/turmas/:id/alocar", turmaHandler.AlocarSala)
 	}
 

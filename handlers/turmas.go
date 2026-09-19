@@ -27,6 +27,14 @@ type entradaMatricula struct {
 	AlunoID string `json:"aluno_id"`
 }
 
+// o corpo do POST de alocação
+type entradaAlocacao struct {
+	SalaID     string `json:"sala_id"`
+	DiaSemana  string `json:"dia_semana"`
+	HoraInicio string `json:"hora_inicio"`
+	HoraFim    string `json:"hora_fim"`
+}
+
 // CriarTurma cadastra uma turma nova.
 // POST /api/v1/turmas
 func CriarTurma(c *gin.Context) {
@@ -155,5 +163,102 @@ func ListarAlunosDaTurma(c *gin.Context) {
 		"turma":      turma.Nome,
 		"qtd_alunos": len(alunos),
 		"alunos":     alunos,
+	})
+}
+
+// AlocarSala coloca a turma numa sala em um dia e horário.
+// POST /api/v1/turmas/:id/alocar
+func AlocarSala(c *gin.Context) {
+	turma := banco.BuscarTurma(c.Param("id"))
+	if turma == nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "turma não encontrada"})
+		return
+	}
+
+	var entrada entradaAlocacao
+	if err := c.ShouldBindJSON(&entrada); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "não consegui ler o json: " + err.Error()})
+		return
+	}
+
+	sala := banco.BuscarSala(entrada.SalaID)
+	if sala == nil {
+		c.JSON(http.StatusNotFound, gin.H{"erro": "sala não encontrada"})
+		return
+	}
+
+	if !sala.Ativa || !turma.Ativa {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"erro": "a sala ou a turma não está ativa no sistema"})
+		return
+	}
+
+	dia := arrumaDia(entrada.DiaSemana)
+	if !diaValido(dia) {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "dia da semana inválido", "aceitos": diasDaSemana})
+		return
+	}
+
+	inicio, err := horaParaMinutos(entrada.HoraInicio)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "hora_inicio: " + err.Error()})
+		return
+	}
+	fim, err := horaParaMinutos(entrada.HoraFim)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "hora_fim: " + err.Error()})
+		return
+	}
+	if inicio >= fim {
+		c.JSON(http.StatusBadRequest, gin.H{"erro": "o horário de início tem que ser antes do horário de término"})
+		return
+	}
+
+	// REGRA 1 - a sala precisa caber todo mundo que já está matriculado
+	if len(turma.Alunos) > sala.Capacidade {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"erro":         "a capacidade da sala é menor que a quantidade de alunos da turma",
+			"capacidade":   sala.Capacidade,
+			"matriculados": len(turma.Alunos),
+		})
+		return
+	}
+
+	// REGRA 2 - a sala não pode ter duas turmas no mesmo dia em horário sobreposto
+	for _, outra := range banco.Turmas {
+		if outra.ID == turma.ID {
+			continue // se a turma já estava alocada, ignoro ela mesma pra poder remanejar
+		}
+		if outra.Alocacao == nil {
+			continue
+		}
+		if outra.Alocacao.SalaID != sala.ID || outra.Alocacao.DiaSemana != dia {
+			continue
+		}
+
+		inicioOcupado, _ := horaParaMinutos(outra.Alocacao.HoraInicio)
+		fimOcupado, _ := horaParaMinutos(outra.Alocacao.HoraFim)
+
+		if temSobreposicao(inicio, fim, inicioOcupado, fimOcupado) {
+			c.JSON(http.StatusConflict, gin.H{
+				"erro":           "a sala já está ocupada nesse dia e horário",
+				"turma_conflito": outra.ID,
+				"horario":        outra.Alocacao.HoraInicio + " às " + outra.Alocacao.HoraFim,
+			})
+			return
+		}
+	}
+
+	turma.Alocacao = &models.Alocacao{
+		SalaID:     sala.ID,
+		DiaSemana:  dia,
+		HoraInicio: entrada.HoraInicio,
+		HoraFim:    entrada.HoraFim,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"mensagem": "turma alocada na sala com sucesso",
+		"turma_id": turma.ID,
+		"sala":     sala.Nome,
+		"alocacao": turma.Alocacao,
 	})
 }

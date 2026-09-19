@@ -46,7 +46,7 @@ func main() {
 		v1.GET("/turmas", handlers.ListarTurmas)
 		v1.POST("/turmas/:id/alunos", handlers.AdicionarAluno)
 		v1.GET("/turmas/:id/alunos", handlers.ListarAlunosDaTurma)
-		//v1.POST("/turmas/:id/alocar", turmaHandler.AlocarSala)
+		v1.POST("/turmas/:id/alocar", handlers.AlocarSala)
 	}
 
 	r.Run(":8080")

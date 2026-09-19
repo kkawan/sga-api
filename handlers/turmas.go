@@ -130,6 +130,35 @@ func AdicionarAluno(c *gin.Context) {
 		}
 	}
 
+	// As duas regras de baixo só fazem sentido se a turma já tiver sala e horário,
+	// porque antes disso não tem capacidade nem horário pra comparar.
+	if turma.Alocacao != nil {
+
+		// REGRA 2 - não pode passar da capacidade da sala que a turma está usando
+		sala := banco.BuscarSala(turma.Alocacao.SalaID)
+		if sala != nil && len(turma.Alunos)+1 > sala.Capacidade {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"erro":         "a sala alocada para essa turma não comporta mais alunos",
+				"sala":         sala.Nome,
+				"capacidade":   sala.Capacidade,
+				"matriculados": len(turma.Alunos),
+			})
+			return
+		}
+
+		// REGRA 3 - o aluno não pode ter aula em outra turma no mesmo dia e horário
+		outra := conflitoDeAgendaDoAluno(aluno.ID, turma)
+		if outra != nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"erro":           "o aluno já tem aula em outra turma nesse mesmo horário",
+				"turma_conflito": outra.ID,
+				"dia_semana":     outra.Alocacao.DiaSemana,
+				"horario":        outra.Alocacao.HoraInicio + " às " + outra.Alocacao.HoraFim,
+			})
+			return
+		}
+	}
+
 	turma.Alunos = append(turma.Alunos, aluno.ID)
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -261,4 +290,48 @@ func AlocarSala(c *gin.Context) {
 		"sala":     sala.Nome,
 		"alocacao": turma.Alocacao,
 	})
+}
+
+// conflitoDeAgendaDoAluno olha as outras turmas em que o aluno está matriculado
+// e devolve a primeira que bate no mesmo dia e horário da turma que ele quer
+// entrar. Se não achar nenhuma devolve nil.
+func conflitoDeAgendaDoAluno(alunoID string, turmaNova *models.Turma) *models.Turma {
+	inicioNovo, err := horaParaMinutos(turmaNova.Alocacao.HoraInicio)
+	if err != nil {
+		return nil
+	}
+	fimNovo, err := horaParaMinutos(turmaNova.Alocacao.HoraFim)
+	if err != nil {
+		return nil
+	}
+
+	for _, outra := range banco.Turmas {
+		if outra.ID == turmaNova.ID || outra.Alocacao == nil {
+			continue
+		}
+		if outra.Alocacao.DiaSemana != turmaNova.Alocacao.DiaSemana {
+			continue
+		}
+
+		// vejo se o aluno está matriculado nessa outra turma
+		estaMatriculado := false
+		for _, id := range outra.Alunos {
+			if id == alunoID {
+				estaMatriculado = true
+				break
+			}
+		}
+		if !estaMatriculado {
+			continue
+		}
+
+		inicioOcupado, _ := horaParaMinutos(outra.Alocacao.HoraInicio)
+		fimOcupado, _ := horaParaMinutos(outra.Alocacao.HoraFim)
+
+		if temSobreposicao(inicioNovo, fimNovo, inicioOcupado, fimOcupado) {
+			return outra
+		}
+	}
+
+	return nil
 }

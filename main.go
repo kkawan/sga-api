@@ -35,6 +35,7 @@ func main() {
 		// Domínio de Salas (Rooms)
 		v1.POST("/salas", handlers.CriarSala)
 		v1.GET("/salas", handlers.ListarSalas)
+		v1.GET("/salas/:id/agenda", handlers.AgendaDaSala)
 
 		// Domínio de Alunos (Students)
 		v1.POST("/alunos", handlers.CriarAluno)

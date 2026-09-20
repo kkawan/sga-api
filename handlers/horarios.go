@@ -6,12 +6,18 @@ import (
 	"strings"
 )
 
-// dias que o sistema aceita
+// dias que o sistema aceita. Coloquei sem acento pra facilitar a comparação,
+// na hora de salvar eu sempre converto pra minúsculo.
 var diasDaSemana = []string{"segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"}
 
-// arrumaDia deixa o dia sempre no mesmo padrão pra poder comparar depois
+// arrumaDia deixa o dia minúsculo e tira o acento do "terça" e do "sábado",
+// senão "Terça" e "terca" iam ser tratados como dias diferentes.
 func arrumaDia(dia string) string {
-	return strings.ToLower(strings.TrimSpace(dia))
+	d := strings.ToLower(strings.TrimSpace(dia))
+	d = strings.ReplaceAll(d, "ç", "c")
+	d = strings.ReplaceAll(d, "á", "a")
+	d = strings.ReplaceAll(d, "-feira", "")
+	return strings.TrimSpace(d)
 }
 
 // diaValido confere se o dia existe na lista

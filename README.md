@@ -132,3 +132,5 @@ responde `409` reclamando do conflito.
 - A validação do e-mail é bem simples, eu só verifico se tem `@`.
 - Se a turma ainda não tem sala, a matrícula não valida capacidade nem conflito
   de horário, porque nesse momento não existe horário pra comparar.
+
+README gerado por IA :)
